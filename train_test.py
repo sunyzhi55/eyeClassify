@@ -141,16 +141,16 @@ def k_fold_cross_validation(device, eyes_dataset, loss_fn, epochs, args, lr, wri
         # package type of DataLoader
         train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         eval_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
-        model = poolformer_s12(num_classes=1000)
-        # exit()
-        model.load_state_dict(torch.load(args.pretrainedModelPath, weights_only=True))
-        model.head = torch.nn.Linear(model.head.in_features, 8)
-        model = model.to(device)
-
-        # model = resnet34(num_classes=1000)
-        # model.load_state_dict(torch.load('./resnet34-333f7ec4.pth'))
-        # model.fc = torch.nn.Linear(model.fc.in_features, 7)  # 修改全连接层
+        # model = poolformer_s12(num_classes=1000)
+        # # exit()
+        # model.load_state_dict(torch.load(args.pretrainedModelPath, weights_only=True))
+        # model.head = torch.nn.Linear(model.head.in_features, 8)
         # model = model.to(device)
+
+        model = resnet34(num_classes=1000)
+        model.load_state_dict(torch.load(args.pretrainedModelPath, weights_only=True))
+        model.fc = torch.nn.Linear(model.fc.in_features, 8)  # 修改全连接层
+        model = model.to(device)
 
 
         # model = EyeSeeNet(num_class=8).to(device)
