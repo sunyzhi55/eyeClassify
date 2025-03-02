@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import optim
 from torch.nn import init
@@ -105,46 +106,3 @@ def estimate(y_true, y_logit, y_prob):
     mcc = matthews_corrcoef(y_true, y_logit)
     return tp, fp, fn, tn, acc, recall, precision, f1_scores, specificity, sensitivity, auc, mcc
 
-# 画图展示
-def plot_training_results(train_losses, val_losses, train_accs, val_accs):
-    plt.figure(figsize=(12, 5))
-
-    # 绘制损失变化图
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Training Loss')
-    plt.plot(val_losses, label='Validation Loss')
-    plt.title('Loss over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-
-    # 绘制准确率变化图
-    plt.subplot(1, 2, 2)
-    plt.plot(train_accs, label='Training Accuracy')
-    plt.plot(val_accs, label='Validation Accuracy')
-    plt.title('Accuracy over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-    plt.savefig('training_results.png')
-
-# 统计类别数量
-def count_labels_by_dataset(dataset):
-    # 假设你的数据集对象名为dataset
-    dataset_labels = [item[2] for item in dataset]  # 假设数据集返回的是一个元组，其中第二项是标签
-    # 统计标签为0和1的个数
-    label_counts = torch.zeros(2, dtype=torch.long)  # 初始化一个长度为2的向量来存储标签计数
-    for label in dataset_labels:
-        label_counts[label] += 1  # 根据标签值增加相应的计数
-    return label_counts
-
-
-def count_labels_by_dataloader(dataloader):
-    label_counts = torch.zeros(2, dtype=torch.long)  # 初始化一个长度为2的向量来存储标签计数
-    for mri_images, pet_image, labels in dataloader:
-        # labels 是一个批次中的所有标签的张量
-        label_counts += torch.bincount(labels, minlength=2)  # 使用 bincount 统计每个标签的数量
-    return label_counts

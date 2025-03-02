@@ -219,6 +219,9 @@ def multi_classification(input_tensor):
 
 if __name__ == "__main__":
     model = resnet50()
+    # 打印参数量
+    # print("参数量", sum(p.numel() for p in model.parameters())) # 参数量 25557032
+
     model.load_state_dict(torch.load(r"D:\BaiduNetdiskDownload\服务外包\PretrainedModel\resnet50-19c8e357.pth"))
     x = torch.randn(1, 3, 224, 224)
     out = model(x)
