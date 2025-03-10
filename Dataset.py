@@ -148,21 +148,6 @@ class DoubleEyesDataset(Dataset):
 
         return left_image, right_image, label_index
 
-class DoubleTransformedSubset(Dataset):
-    def __init__(self, subset, transform=None):
-        self.subset = subset
-        self.transform = transform
-
-    def __getitem__(self, index):
-        x, y, z = self.subset[index]
-        if self.transform:
-            x = self.transform(x)
-            y = self.transform(y)
-        return x, y, z
-
-    def __len__(self):
-        return len(self.subset)
-
 class DoubleEyesDatasetTwoClass(Dataset):
     def __init__(self, csv_file, img_prefix, transform=None):
         """
@@ -248,6 +233,90 @@ class DoubleEyesDatasetTwoClass(Dataset):
         label_1d, label_index_2d = self.get_label_index(row)
 
         return left_image, right_image, label_1d, label_index_2d
+
+class DoubleEyesDatasetAllClass(Dataset):
+    def __init__(self, csv_file, img_prefix, transform=None):
+        """
+        初始化 Dataset
+        :param csv_file: str, CSV 文件路径
+        :param img_prefix: str, 图片路径前缀
+        :param transform: torchvision.transforms, 数据增强和预处理
+        """
+        self.data = pd.read_csv(csv_file)
+
+        # 过滤掉 'N' == 1 的行
+        self.data = self.data[self.data['N'] != 1]
+
+        self.img_prefix = img_prefix
+        # self.labels = {'N': 0, 'D': 1, 'G': 2, 'C': 3, 'A': 4, 'H': 5, 'M': 6, 'O': 7}
+        self.labels = {'D': 0, 'G': 1, 'C': 2, 'A': 3, 'H': 4, 'M': 5, 'O': 6}
+        self.transform = transform
+
+    def __len__(self):
+        """
+        返回数据集的长度
+        """
+        return len(self.data)
+
+    def get_label_index(self, row):
+        """
+        根据标签列返回类别索引
+        :param row: DataFrame 的一行
+        :return: int, 类别索引
+        """
+        # label_index = torch.zeros(7)
+        # # if row['N'] == 1:
+        # #     pass
+        # # else:
+        # for label, index in self.labels.items():
+        #     if row[label] == 1:
+        #         label_index[index] = 1
+        #
+        # return label_index
+
+        label_index_int = torch.zeros(7, dtype=torch.int)
+        label_index_float = torch.zeros(7, dtype=torch.float)
+
+        for label, index in self.labels.items():
+            if row[label] == 1:
+                label_index_int[index] = 1
+                label_index_float[index] = 1.0
+
+        return label_index_int, label_index_float
+
+    def __getitem__(self, idx):
+        """
+        获取指定索引的数据
+        :param idx: int, 数据索引
+        :return: tuple (image, label_index)
+        """
+        idx = int(idx)
+        if isinstance(idx, int):
+            row = self.data.iloc[idx]
+        else:
+            raise TypeError("Index must be an integer.")
+
+        # 构造图片路径
+        # print(row)
+        left_img_name = row.iloc[3]
+        left_img_path = f"{self.img_prefix}/{left_img_name}"
+
+        right_img_name = row.iloc[4]
+        right_img_path = f"{self.img_prefix}/{right_img_name}"
+
+        # 打开图片
+        left_image = Image.open(left_img_path).convert('RGB')
+        right_image = Image.open(right_img_path).convert('RGB')
+
+        # 数据增强和预处理
+        if self.transform:
+            left_image = self.transform(left_image)
+            right_image = self.transform(right_image)
+
+        # 获取类别索引
+        label_index_int, label_index_float = self.get_label_index(row)
+
+        return left_image, right_image, label_index_int, label_index_float
 
 
 if __name__ == "__main__":

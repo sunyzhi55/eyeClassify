@@ -6,6 +6,7 @@ from Dataset import *
 from model.Resnet import *
 from train_test import k_fold_cross_validation
 from double_text_0_1 import k_fold_cross_validation_double_text_0_1
+from double_8_class import k_fold_cross_validation_double_8_class
 from Config import parse_args
 
 if __name__ == '__main__':
@@ -47,7 +48,8 @@ if __name__ == '__main__':
     }
     # 初始化自定义数据集
     # dataset = EyesDataset(csv_file=args.csv_file_path, img_prefix=args.data_dir, transform=None)
-    dataset = DoubleEyesDatasetTwoClass(csv_file=args.csv_file_path, img_prefix=args.data_dir, transform=None)
+    # dataset = DoubleEyesDatasetTwoClass(csv_file=args.csv_file_path, img_prefix=args.data_dir, transform=None)
+    dataset = DoubleEyesDatasetAllClass(csv_file=args.csv_file_path, img_prefix=args.data_dir, transform=None)
 
     # 定义模型保存的文件夹
     model_dir = args.checkpoint_dir
@@ -57,8 +59,11 @@ if __name__ == '__main__':
     # k_fold_cross_validation(device, dataset, args, workers=2, print_freq=1,
     #                         best_result_model_path="model", total_transform=train_validation_test_transform)
 
-    k_fold_cross_validation_double_text_0_1(device, dataset, args, workers=2, print_freq=1,
-                            best_result_model_path="model", total_transform=train_validation_test_transform)
+    # k_fold_cross_validation_double_text_0_1(device, dataset, args, workers=2, print_freq=1,
+    #                         best_result_model_path="model", total_transform=train_validation_test_transform)
+    k_fold_cross_validation_double_8_class(device, dataset, args, workers=2, print_freq=1,
+                                           best_result_model_path="model", total_transform=train_validation_test_transform)
+
     end = time.time()
     total_seconds = end - start
     # 计算小时、分钟和秒
