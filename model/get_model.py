@@ -16,34 +16,57 @@ class DoubleImageModel(nn.Module):
         y1_sigmoid = self.activate_layer(y1)
         return x1, x1_sigmoid, y1, y1_sigmoid
 
+class DoubleImageModel7Class_1(nn.Module):
+    def __init__(self, num_classes, pretrained_path):
+        super().__init__()
+        # self.model1 = poolformer_s12(num_classes=1000)
+        # self.model1.load_state_dict(torch.load(pretrained_path, weights_only=True))
+        # self.model1.head = torch.nn.Linear(self.model1.head.in_features, num_classes)
+        self.model1 = efficientnetv2_s(num_classes=1000)
+        self.model1.load_state_dict(torch.load(pretrained_path, weights_only=True))
+        self.model1.head.classifier = torch.nn.Linear(self.model1.head.classifier.in_features, num_classes)
+        # self.model2 = poolformer_s12(num_classes=1000)
+        # self.model2.load_state_dict(torch.load(pretrained_path, weights_only=True))
+        # self.model2.head = torch.nn.Linear(self.model2.head.in_features, num_classes)
+        self.model2 = efficientnetv2_s(num_classes=1000)
+        self.model2.load_state_dict(torch.load(pretrained_path, weights_only=True))
+        self.model2.head.classifier = torch.nn.Linear(self.model2.head.classifier.in_features, num_classes)
+        self.fc1 = nn.Linear(2 * num_classes, 10)
+        self.fc2 = nn.Linear(10, num_classes)
+    def forward(self, x, y):
+        x1 = self.model1(x)
+        y1 = self.model2(y)
+        fusion = torch.cat((x1, y1), dim=1)
+        result = self.fc1(fusion)
+        result = self.fc2(result)
+        return result
+
+
 class DoubleImageModel7Class(nn.Module):
     def __init__(self, num_classes, pretrained_path):
         super().__init__()
         # self.model1 = poolformer_s12(num_classes=1000)
         # self.model1.load_state_dict(torch.load(pretrained_path, weights_only=True))
         # self.model1.head = torch.nn.Linear(self.model1.head.in_features, num_classes)
-
         self.model1 = efficientnetv2_s(num_classes=1000)
         self.model1.load_state_dict(torch.load(pretrained_path, weights_only=True))
         self.model1.head.classifier = torch.nn.Linear(self.model1.head.classifier.in_features, num_classes)
-
         # self.model2 = poolformer_s12(num_classes=1000)
         # self.model2.load_state_dict(torch.load(pretrained_path, weights_only=True))
         # self.model2.head = torch.nn.Linear(self.model2.head.in_features, num_classes)
-
-        self.model2 = efficientnetv2_s(num_classes=1000)
-        self.model2.load_state_dict(torch.load(pretrained_path, weights_only=True))
-        self.model2.head.classifier = torch.nn.Linear(self.model2.head.classifier.in_features, num_classes)
-
-        self.fc1 = nn.Linear(num_classes * 2, 10)
-        self.fc2 = nn.Linear(10,  num_classes)
+        # self.model2 = efficientnetv2_s(num_classes=1000)
+        # self.model2.load_state_dict(torch.load(pretrained_path, weights_only=True))
+        # self.model2.head.classifier = torch.nn.Linear(self.model2.head.classifier.in_features, num_classes)
+        self.fc = nn.Sequential(
+            nn.Linear(2 * num_classes, 10),
+            nn.ReLU(),
+            nn.Linear(10, num_classes),
+        )
     def forward(self, x, y):
         x1 = self.model1(x)
         y1 = self.model1(y)
         fusion = torch.cat((x1, y1), dim=1)
-        result = self.fc1(fusion)
-        result = self.fc2(result)
-
+        result = self.fc(fusion)
         return result
 
 

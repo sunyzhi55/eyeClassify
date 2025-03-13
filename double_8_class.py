@@ -5,6 +5,7 @@ from model import *
 from utils.metrics import *
 from utils.basic import get_scheduler
 import torch
+from loss_function import FocalLoss
 
 class DoubleTransformedSubset(Dataset):
     def __init__(self, subset, transform=None):
@@ -75,7 +76,9 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
         # pos_weight_for_7_disease = torch.tensor([6.89, 16.51, 17.47, 19.88, 38.74, 22.61, 3.55])  # true
         # pos_weight_for_7_disease = torch.tensor([6.89, 16.51, 17.47, 10.0, 18.0, 22.61, 3.55]) # false
         # loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight_for_7_disease).to(device)  # 损失函数
-        loss_fn = nn.BCEWithLogitsLoss(pos_weight=ratio).to(device)
+        # loss_fn = nn.BCEWithLogitsLoss(pos_weight=ratio).to(device)
+        loss_fn = FocalLoss(device=device, position_weight=ratio).to(device)
+
         # loss_fn = nn.CrossEntropyLoss().to(device)
         total_params = sum(p.numel() for p in model.parameters())
         print('总参数个数:{}'.format(total_params))
