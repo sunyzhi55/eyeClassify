@@ -5,18 +5,17 @@ from model import *
 from utils.metrics import *
 from utils.basic import get_scheduler
 import torch
-from loss_function import FocalLoss
 
 class DoubleTransformedSubset(Dataset):
     def __init__(self, subset, transform=None):
         self.subset = subset
         self.transform = transform
     def __getitem__(self, index):
-        x, y, label_2d_int, label_2d_float = self.subset[index]
+        batch = self.subset[index]
         if self.transform:
-            x = self.transform(x)
-            y = self.transform(y)
-        return x, y, label_2d_int, label_2d_float
+            batch['left_image'] = self.transform(batch['left_image'])
+            batch['right_image'] = self.transform(batch['right_image'])
+        return batch
     def __len__(self):
         return len(self.subset)
 
@@ -49,25 +48,32 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
         # 应用转换
         train_dataset = DoubleTransformedSubset(k_train_fold, transform=total_transform['train_transforms'])
         val_dataset = DoubleTransformedSubset(k_test_fold, transform=total_transform['validation_transforms'])
+        train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size,
+                                                       shuffle=True, drop_last=True)
+        eval_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size,
+                                                      shuffle=False)
+        num_classes = 7
+        model_single_eye = SingleImageModel7Class(num_classes=num_classes, pretrained_path=args.pretrainedModelPath)
+        model_single_eye = model_single_eye.to(device)
+        head = nn.Sequential(
+            nn.Linear(2 * num_classes, 8),
+            nn.BatchNorm1d(8),
+            nn.ReLU(),
+            # nn.Dropout(),
+            nn.Linear(8, num_classes)
+        ).to(device)
 
-        train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-        eval_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
-
-        model = DoubleImageModel7Class(num_classes=7, pretrained_path=args.pretrainedModelPath)
-        model = model.to(device)
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.98))
-        scheduler = get_scheduler(optimizer, args)
-
+        optimizer1 = torch.optim.Adam(model_single_eye.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.98))
+        scheduler1 = get_scheduler(optimizer1, args)
+        # optimizer2 = torch.optim.Adam(head.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.98))
+        # scheduler2 = get_scheduler(optimizer2, args)
         # 损失函数
-        ratio = torch.zeros(7)
+        ratio = torch.zeros(8)
         Count = 0
-        for (_, _, labels_int, labels_float) in train_dataloader:
-            ratio += torch.sum(labels_float, dim=0)
-            Count += labels_float.shape[0]
-            # break
-            # print(ratio, Count)
-        # ratio = torch.tensor([100., 100., 100., 100., 100., 100., 100.])
+        for batch in train_dataloader:
+            # print("batch['total_label_index_float']", batch['total_label_index_float'])
+            ratio += torch.sum(batch['total_label_index_float'], dim=0)
+            Count += batch['total_label_index_float'].shape[0]
         print("各疾病总数:", ratio, Count)
         ratio = Count / ratio - 1
         print("各疾病损失权重:", ratio)
@@ -76,52 +82,95 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
         # pos_weight_for_7_disease = torch.tensor([6.89, 16.51, 17.47, 19.88, 38.74, 22.61, 3.55])  # true
         # pos_weight_for_7_disease = torch.tensor([6.89, 16.51, 17.47, 10.0, 18.0, 22.61, 3.55]) # false
         # loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight_for_7_disease).to(device)  # 损失函数
-        # loss_fn = nn.BCEWithLogitsLoss(pos_weight=ratio).to(device)
-        loss_fn = FocalLoss(device=device, position_weight=ratio).to(device)
-
+        loss_fn = nn.BCEWithLogitsLoss(pos_weight=ratio[1:]).to(device)
+        # loss_fn = FocalLoss(device=device, position_weight=ratio[1:]).to(device)
         # loss_fn = nn.CrossEntropyLoss().to(device)
-        total_params = sum(p.numel() for p in model.parameters())
-        print('总参数个数:{}'.format(total_params))
+        total_params = (sum(p.numel() for p in model_single_eye.parameters())
+                        + sum(p.numel() for p in head.parameters()))
+        print(f'总参数个数:{total_params}')
 
         # metrics_single_label = MetricsWithSingleLabel(num_classes=2, device=device)
-        metrics_mul_label = MetricsWithMultiLabelWithTorchmetrics(num_classes=7, device=device)
+        metrics_mul_label = MetricsWithMultiLabelWithTorchmetrics(num_classes=8, device=device)
         for e in range(1, epochs + 1):
-            model.train()
+            model_single_eye.train()
+            head.train()
             metrics_mul_label.reset()
             # 获取当前学习率（假设只有一个参数组）
-            current_lr = optimizer.param_groups[0]['lr']
+            current_lr = optimizer1.param_groups[0]['lr']
             train_iterator = tqdm(train_dataloader, desc=f"Training Epoch {e}, LR {current_lr:.6f}", unit="batch")
-            for batch_idx, (left_image, right_image, label_index_2d_int, label_index_2d_float) in enumerate(train_iterator):
+            # for batch_idx, (left_image, right_image, label_index_2d_int, label_index_2d_float) in enumerate(train_iterator):
+            for batch in train_iterator:
+                left_image, right_image = batch['left_image'], batch['right_image']
+                left_eye_label_index_int, left_eye_label_index_float = batch['left_eye_label_index_int'], batch[
+                    'left_eye_label_index_float'],
+                right_eye_label_index_int, right_eye_label_index_float = batch['right_eye_label_index_int'], batch[
+                    'right_eye_label_index_float'],
+                total_label_index_int, total_label_index_float = batch['total_label_index_int'], batch[
+                    'total_label_index_float']
                 left_image, right_image, = left_image.to(device), right_image.to(device)
-                label_index_2d_int, label_index_2d_float = label_index_2d_int.to(device), label_index_2d_float.to(device)
-                # print(f"image:{images.shape}")
-                # print(f"labels:{labels}")  # torch.Size([2])
-                optimizer.zero_grad()
-                logit = model(left_image, right_image)
-                # _, predictions = torch.max(prob, dim=1)
-                # prob_positive = prob[:, 1]
-                loss = loss_fn(logit, label_index_2d_float)
+                total_label_index_int, total_label_index_float = (total_label_index_int.to(device),
+                                                                  total_label_index_float.to(device))
+                left_eye_label_index_int, left_eye_label_index_float = (left_eye_label_index_int.to(device),
+                                                                        left_eye_label_index_float.to(device))
+                right_eye_label_index_int, right_eye_label_index_float = (right_eye_label_index_int.to(device),
+                                                                          right_eye_label_index_float.to(device))
+                # left_image, right_image, = left_image.to(device), right_image.to(device)
+                # label_index_2d_int, label_index_2d_float = label_index_2d_int.to(device), label_index_2d_float.to(device)
+                # logit = model(left_image, right_image)
+                optimizer1.zero_grad()
+                left_logit = model_single_eye(left_image)
+                right_logit = model_single_eye(right_image)
+                logit = head(torch.cat((left_logit, right_logit), dim=1))
+                loss_1 = loss_fn(left_logit, left_eye_label_index_float[:, 1:])
+                loss_2 = loss_fn(right_logit, right_eye_label_index_float[:, 1:])
+                loss_3 = loss_fn(logit, total_label_index_float[:, 1:])
+                loss = (loss_1 + loss_2 + loss_3) / 3.0
+                # loss = loss_fn(logit, label_index_2d_float[:, 1:])
                 loss.backward()
-                optimizer.step()
-                metrics_mul_label.train_update(loss, logit, label_index_2d_int)
-            if scheduler:
-                scheduler.step()
+                optimizer1.step()
+                metrics_mul_label.train_update(loss, logit, total_label_index_int)
+            if scheduler1:
+                scheduler1.step()
             with torch.no_grad():
-                model.eval()
+                model_single_eye.train()
+                head.train()
                 eval_iterator = tqdm(eval_dataloader, desc=f"Evaluating Epoch {e}", unit="batch")
-                for batch_idx, (left_image, right_image, label_index_2d_int, label_index_2d_float) in enumerate(eval_iterator):
+                # for batch_idx, (left_image, right_image, label_index_2d_int, label_index_2d_float) in enumerate(eval_iterator):
+                for batch in eval_iterator:
+                    left_image, right_image = batch['left_image'], batch['right_image']
+                    left_eye_label_index_int, left_eye_label_index_float = batch['left_eye_label_index_int'], batch[
+                        'left_eye_label_index_float'],
+                    right_eye_label_index_int, right_eye_label_index_float = batch['right_eye_label_index_int'], batch[
+                        'right_eye_label_index_float'],
+                    total_label_index_int, total_label_index_float = batch['total_label_index_int'], batch[
+                        'total_label_index_float']
                     left_image, right_image, = left_image.to(device), right_image.to(device)
-                    label_index_2d_int, label_index_2d_float = label_index_2d_int.to(device), label_index_2d_float.to(device)
-                    logit = model(left_image, right_image)
+                    total_label_index_int, total_label_index_float = (total_label_index_int.to(device),
+                                                                      total_label_index_float.to(device))
+                    left_eye_label_index_int, left_eye_label_index_float = (left_eye_label_index_int.to(device),
+                                                                            left_eye_label_index_float.to(device))
+                    right_eye_label_index_int, right_eye_label_index_float = (right_eye_label_index_int.to(device),
+                                                                              right_eye_label_index_float.to(device))
+                    # left_image, right_image, = left_image.to(device), right_image.to(device)
+                    # label_index_2d_int, label_index_2d_float = label_index_2d_int.to(device), label_index_2d_float.to(device)
+                    # logit = model(left_image, right_image)
                     # _, predictions = torch.max(prob, dim=1)
                     # prob_positive = prob[:, 1]
-                    loss = loss_fn(logit, label_index_2d_float)
-                    metrics_mul_label.eval_update(loss, logit, label_index_2d_int)
+                    # loss = loss_fn(logit, label_index_2d_float[:, 1:])
+                    left_logit = model_single_eye(left_image)
+                    right_logit = model_single_eye(right_image)
+                    logit = head(torch.cat((left_logit, right_logit), dim=1))
+                    loss_1 = loss_fn(left_logit, left_eye_label_index_float[:, 1:])
+                    loss_2 = loss_fn(right_logit, right_eye_label_index_float[:, 1:])
+                    loss_3 = loss_fn(logit, total_label_index_float[:, 1:])
+                    loss = (loss_1 + loss_2 + loss_3) / 3.0
+                    metrics_mul_label.eval_update(loss, logit, total_label_index_int)
             metrics_mul_label.compute_result()
             metrics_mul_label.average_train_loss = metrics_mul_label.total_train_loss / len(train_dataloader.dataset)
             metrics_mul_label.average_eval_loss = metrics_mul_label.total_eval_loss / len(eval_dataloader.dataset)
             if metrics_mul_label.get_best(e) :
-                torch.save(model.state_dict(), checkpoint_dir + f'/{best_result_model_path}_fold{fold}.pth')
+                torch.save(model_single_eye.state_dict(), checkpoint_dir + f'/{best_result_model_path}_single_eye.pth')
+                torch.save(head.state_dict(), checkpoint_dir + f'/{best_result_model_path}_head.pth')
             if e % print_freq == 0:
                 metrics_mul_label.print_result(e, epochs)
         metrics_mul_label.print_best_result(fold)
