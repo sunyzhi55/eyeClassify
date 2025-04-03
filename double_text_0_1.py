@@ -2,9 +2,10 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
 from sklearn.model_selection import KFold
 from model import *
-from utils.metrics import MetricsWithMultiLabel, MetricsWithSingleLabel
-from utils.basic import get_scheduler
+from utils.metrics import MetricsWithSingleLabel
+from utils.basic import get_scheduler, make_weights_for_balanced_classes
 import torch
+from utils.loss_function import FocalLossWithTwoClass
 
 class DoubleTransformedSubset(Dataset):
     def __init__(self, subset, transform=None):
@@ -51,8 +52,19 @@ def k_fold_cross_validation_double_text_0_1(device, eyes_dataset, args, workers=
         train_dataset = DoubleTransformedSubset(k_train_fold, transform=total_transform['train_transforms'])
         val_dataset = DoubleTransformedSubset(k_test_fold, transform=total_transform['validation_transforms'])
 
+        # Calculate weights for balanced classes
+        weights = make_weights_for_balanced_classes(train_dataset)
+        weights = torch.DoubleTensor(weights)
+
+        # Create WeightedRandomSampler
+        sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+
+
         # package type of DataLoader
-        train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+        train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size,
+                                                       sampler = sampler, shuffle=False)
+
+        # train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         eval_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
 
         model = DoubleImageModel(num_classes=2, pretrained_path=args.pretrainedModelPath)
@@ -68,7 +80,8 @@ def k_fold_cross_validation_double_text_0_1(device, eyes_dataset, args, workers=
         # pos_weight_for_7_disease = torch.tensor([6.89, 16.51, 17.47, 10.0, 18.0, 22.61, 3.55]) # false
         # loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight_for_7_disease).to(device)  # 损失函数
 
-        loss_fn = nn.BCELoss().to(device)
+        # loss_fn = nn.BCELoss().to(device)
+        loss_fn = FocalLossWithTwoClass().to(device)
         # loss_fn = nn.CrossEntropyLoss().to(device)
 
         total_params = sum(p.numel() for p in model.parameters())
@@ -93,7 +106,8 @@ def k_fold_cross_validation_double_text_0_1(device, eyes_dataset, args, workers=
                 prob = (left_prob + right_prob) / 2.0
                 _, predictions = torch.max(prob, dim=1)
                 # prob_positive = prob[:, 1]
-                loss = loss_fn(prob, label_index_2d)
+                # loss = loss_fn(prob, label_index_2d)
+                loss = (loss_fn(left_logit, label_index_2d) + loss_fn(right_logit, label_index_2d)) / 2.0
                 loss.backward()
                 optimizer.step()
                 metrics_single_label.train_update(loss, predictions, label_1d)
@@ -112,8 +126,8 @@ def k_fold_cross_validation_double_text_0_1(device, eyes_dataset, args, workers=
                     prob = (left_prob + right_prob) / 2.0
                     _, predictions = torch.max(prob, dim=1)
                     # prob_positive = prob[:, 1]
-                    loss = loss_fn(prob, label_index_2d)
-
+                    # loss = loss_fn(prob, label_index_2d)
+                    loss = (loss_fn(left_logit, label_index_2d) + loss_fn(right_logit, label_index_2d)) / 2.0
                     metrics_single_label.eval_update(loss, predictions, label_1d)
             metrics_single_label.compute_result()
             metrics_single_label.average_train_loss = metrics_single_label.total_train_loss / len(train_dataloader.dataset)

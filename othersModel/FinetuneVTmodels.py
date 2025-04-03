@@ -4,10 +4,7 @@ import torch
 import torch.nn as nn
 from functools import partial
 from collections import OrderedDict
-
-from tensorboard.plugins.image.summary import image
-from timm.models import create_model
-from MIL_VT import *
+from othersModel.MIL_VT import *
 
 def rename_pretrain_weight(checkpoint):
     state_dict_old = checkpoint['state_dict']
@@ -18,8 +15,7 @@ def rename_pretrain_weight(checkpoint):
 
 
 #LoadTongrenPretrainedWeight_NoDistillation
-def MIL_VT_FineTune(base_model='MIL_VT_small_patch16_384',
-                    image_size=384,
+def MIL_VT_FineTune(image_size=384,
                     MODEL_PATH_finetune = 'weights/fundus_pretrained_VT_small_patch16_384_5Class.pth.tar',
                     num_classes=5):
     """Load pretrain weight from distillation model, to train a plain model"""
@@ -83,18 +79,46 @@ def MIL_VT_FineTune(base_model='MIL_VT_small_patch16_384',
 
     return model
 
-if __name__ == '__main__':
-    img_size = 384
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    base_model = 'MIL_VT_small_patch16_'+str(img_size)  #nominate the MIL-VT model to be used
-    MODEL_PATH_finetune = '/data4/wangchangmiao/shenxy/PretrainedModel/fundus_pretrained_VT_small_patch16_384_5Class.pth.tar'
-    model = MIL_VT_FineTune(base_model=base_model, image_size=img_size,
-                            MODEL_PATH_finetune = MODEL_PATH_finetune, num_classes=5).to(device)
-    print(model)
-    # 打印模型参数量
-    print("model parameters:", sum(p.numel() for p in model.parameters()))
-    x = torch.randn(1, 3, img_size, img_size).to(device)
-    output1, output2 = model(x)
-    print("output1", output1.shape)
-    print("output2", output2.shape)
+
+class MIL_VIT_Double(nn.Module):
+    def __init__(self, image_size=384,
+                 MODEL_PATH_finetune = 'weights/fundus_pretrained_VT_small_patch16_384_5Class.pth.tar',
+                 num_classes=7):
+        super(MIL_VIT_Double, self).__init__()
+        self.model1 = MIL_VT_FineTune(image_size=image_size, MODEL_PATH_finetune = MODEL_PATH_finetune, num_classes=num_classes)
+        # self.model2 = MIL_VT_FineTune(image_size=image_size, MODEL_PATH_finetune = MODEL_PATH_finetune, num_classes=num_classes)
+        self.fc = nn.Sequential(
+            nn.Linear(2 * num_classes, 10),
+            nn.ReLU(),
+            nn.Linear(10, num_classes),
+        )
+
+    def forward(self, x, y):
+        if self.training:
+            outputs_class1, outputs_MIL1 = self.model1(x)
+            outputs_class2, outputs_MIL2  = self.model1(y)
+            fusion = torch.cat((outputs_class1, outputs_class2), dim=1)
+            result = self.fc(fusion)
+            return outputs_class1, outputs_MIL1, outputs_class2, outputs_MIL2, result
+        else:
+            outputs_class1 = self.model1(x)
+            outputs_class2  = self.model1(y)
+            fusion = torch.cat((outputs_class1, outputs_class2), dim=1)
+            result = self.fc(fusion)
+            return outputs_class1, outputs_class2, result
+
+
+
+# if __name__ == '__main__':
+#     img_size = 384
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#     MODEL_PATH_finetune = '/data4/wangchangmiao/shenxy/PretrainedModel/fundus_pretrained_VT_small_patch16_384_5Class.pth.tar'
+#     model = MIL_VT_FineTune(image_size=img_size, MODEL_PATH_finetune = MODEL_PATH_finetune, num_classes=5).to(device)
+#     print(model)
+#     # 打印模型参数量
+#     print("model parameters:", sum(p.numel() for p in model.parameters()))
+#     x = torch.randn(1, 3, img_size, img_size).to(device)
+#     output1, output2 = model(x)
+#     print("output1", output1.shape)
+#     print("output2", output2.shape)
 

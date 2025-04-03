@@ -62,9 +62,9 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
             # nn.Dropout(),
             nn.Linear(8, num_classes)
         ).to(device)
-
-        optimizer1 = torch.optim.Adam(model_single_eye.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.98))
-        scheduler1 = get_scheduler(optimizer1, args)
+        model = nn.Sequential(model_single_eye, head).to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.98))
+        scheduler = get_scheduler(optimizer, args)
         # optimizer2 = torch.optim.Adam(head.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.98))
         # scheduler2 = get_scheduler(optimizer2, args)
         # 损失函数
@@ -96,7 +96,7 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
             head.train()
             metrics_mul_label.reset()
             # 获取当前学习率（假设只有一个参数组）
-            current_lr = optimizer1.param_groups[0]['lr']
+            current_lr = optimizer.param_groups[0]['lr']
             train_iterator = tqdm(train_dataloader, desc=f"Training Epoch {e}, LR {current_lr:.6f}", unit="batch")
             # for batch_idx, (left_image, right_image, label_index_2d_int, label_index_2d_float) in enumerate(train_iterator):
             for batch in train_iterator:
@@ -117,7 +117,7 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
                 # left_image, right_image, = left_image.to(device), right_image.to(device)
                 # label_index_2d_int, label_index_2d_float = label_index_2d_int.to(device), label_index_2d_float.to(device)
                 # logit = model(left_image, right_image)
-                optimizer1.zero_grad()
+                optimizer.zero_grad()
                 left_logit = model_single_eye(left_image)
                 right_logit = model_single_eye(right_image)
                 logit = head(torch.cat((left_logit, right_logit), dim=1))
@@ -127,10 +127,10 @@ def k_fold_cross_validation_double_8_class(device, eyes_dataset, args, workers=2
                 loss = (loss_1 + loss_2 + loss_3) / 3.0
                 # loss = loss_fn(logit, label_index_2d_float[:, 1:])
                 loss.backward()
-                optimizer1.step()
+                optimizer.step()
                 metrics_mul_label.train_update(loss, logit, total_label_index_int)
-            if scheduler1:
-                scheduler1.step()
+            if scheduler:
+                scheduler.step()
             with torch.no_grad():
                 model_single_eye.train()
                 head.train()

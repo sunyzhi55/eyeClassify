@@ -25,7 +25,8 @@ def get_scheduler(optimizer, opt):
     elif opt.lr_policy == 'plateau':
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
     elif opt.lr_policy == 'cosine':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.niter, eta_min=0)
+        # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.niter, eta_min=0)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=3, eta_min=0.00001)
     elif opt.lr_policy == 'exp':
         scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=opt.lr_decay)
     else:
@@ -106,3 +107,25 @@ def estimate(y_true, y_logit, y_prob):
     mcc = matthews_corrcoef(y_true, y_logit)
     return tp, fp, fn, tn, acc, recall, precision, f1_scores, specificity, sensitivity, auc, mcc
 
+def make_weights_for_balanced_classes(dataset):
+    """
+    在单次遍历中计算每个样本的权重以平衡不同类别的影响。
+
+    :param dataset: 数据集对象，必须支持迭代，并且每个元素应包含标签信息。
+    :return: list, 每个样本对应的权重列表。
+    """
+    class_counts = {}
+    weights = []
+    total_samples = len(dataset)
+
+    # 单次遍历完成类别计数和权重计算
+    for _, _, label_1d, _ in dataset:
+        if label_1d not in class_counts:
+            class_counts[label_1d] = 0
+        class_counts[label_1d] += 1
+        # total_samples += 1
+    for _, _, label_1d, _ in dataset:
+        class_weight = total_samples / float(class_counts[label_1d])
+        weights.append(class_weight)
+
+    return weights

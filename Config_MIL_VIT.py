@@ -3,22 +3,18 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Pytorch Cnn For Any Dataset')
-    parser.add_argument('--data_dir', type=str, default='/data3/wangchangmiao/shenxy/EyeDataset/Enhanced', help='Path to dataset')
+    parser.add_argument('--data_dir', type=str, default='/data4/wangchangmiao/shenxy/EyeDataset/Enhanced', help='Path to dataset')
     parser.add_argument('--csv_file_path', type=str, default='./csv/select.csv', help='Path to csv file')
     parser.add_argument('--data_choice', type=str, default='1', help='Dataset to choose, '
                                                                      '1 for MNIST, 2 for CIFAR10, 3 for Custom Dataset')
-    parser.add_argument('--Image_size', type=int, default=224, help='Size to reshape image')
+    parser.add_argument('--Image_size', type=int, default=512, help='Size to reshape image')
     parser.add_argument('--checkpoint_dir', type=str, default='./result', help='Path to save model')
-    parser.add_argument('--pretrainedModelPath', type=str, default='/data3/wangchangmiao/shenxy/PretrainedModel/poolformerv2_s12.pth', help='Model to use')
+    parser.add_argument('--pretrainedModelPath', type=str, default='/data4/wangchangmiao/shenxy/PretrainedModel/fundus_pretrained_VT_small_patch16_384_5Class.pth.tar', help='Model to use')
 
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
-    parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate')
+    parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
+    parser.add_argument('--learning_rate', type=float, default=2e-5, help='Learning rate')
     parser.add_argument('--epochs', type=int, default=200, help='Number of Epoch')
     parser.add_argument('--optimizer', type=str, default='SGD', help='Optimizer to use')
-    parser.add_argument("--momentum", default=0.9, type=float, help="SGD Momentum.")
-    parser.add_argument("--weight_decay", default=0.0005, type=float, help="L2 weight decay.")
-    parser.add_argument("--rho", default=2.0, type=int, help="Rho parameter for SAM.")
-    parser.add_argument("--adaptive", default=True, type=bool, help="True if you want to use the Adaptive SAM.")
     parser.add_argument('--lr_policy', type=str, default='cosine', help='Scheduler to use')
     parser.add_argument('--lr_decay', type=float, default=0.95, help='initial lambda decay value')
     parser.add_argument('--niter', type=int, default=50, help='lr decay step')

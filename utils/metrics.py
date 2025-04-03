@@ -43,11 +43,28 @@ def get_metrics(predictions, labels, normal=False):
 def to0_1(tensor):
     # 阈值
     threshold = 0.5
-    bool_tensor = tensor > threshold
+    bool_tensor = tensor >= threshold
 
     # 将布尔型张量转换为浮点型张量，True变为1.0，False变为0.0
     result_tensor = bool_tensor.float()
     return result_tensor
+
+def add_leading_column(predictions):
+    """
+    在输入的 7 列张量前添加一列。如果原张量的某一行全为 0，则新列对应位置为 1，否则为 0。
+
+    参数:
+    predictions (torch.Tensor): 形状为 (N, 7) 的张量，元素为 0 或 1。
+
+    返回:
+    torch.Tensor: 形状为 (N, 8) 的张量。
+    """
+    # 检查每一行是否全为 0
+    all_zeros = (predictions.sum(dim=1) == 0).float()
+    # 在开头加一列
+    new_column = all_zeros.unsqueeze(1)
+    result = torch.cat((new_column, predictions), dim=1)
+    return result
 
 # 写一个类，用于计算多标签分类评价指标
 class MetricsWithMultiLabel:
@@ -407,32 +424,36 @@ class MetricsWithMultiLabelWithTorchmetrics:
     def train_update(self, loss, predictions, labels):
         self.total_train_loss += loss.item()
         predictions_sigmoid = torch.sigmoid(predictions)
-        self.train_acc.update(predictions_sigmoid, labels)
-        self.train_recall.update(predictions_sigmoid, labels)
-        self.train_precision.update(predictions_sigmoid, labels)
-        self.train_F1.update(predictions_sigmoid, labels)
-        self.train_spe.update(predictions_sigmoid, labels)
-        self.train_weight_acc.update(predictions_sigmoid, labels)
-        self.train_weight_recall.update(predictions_sigmoid, labels)
-        self.train_weight_precision.update(predictions_sigmoid, labels)
-        self.train_weight_F1.update(predictions_sigmoid, labels)
-        self.train_weight_spe.update(predictions_sigmoid, labels)
-        self.train_confusionMatrix.update(predictions_sigmoid, labels)
+        predictions_0_1 = to0_1(predictions_sigmoid)
+        predictions_0_1 = add_leading_column(predictions_0_1)
+        self.train_acc.update(predictions_0_1, labels)
+        self.train_recall.update(predictions_0_1, labels)
+        self.train_precision.update(predictions_0_1, labels)
+        self.train_F1.update(predictions_0_1, labels)
+        self.train_spe.update(predictions_0_1, labels)
+        self.train_weight_acc.update(predictions_0_1, labels)
+        self.train_weight_recall.update(predictions_0_1, labels)
+        self.train_weight_precision.update(predictions_0_1, labels)
+        self.train_weight_F1.update(predictions_0_1, labels)
+        self.train_weight_spe.update(predictions_0_1, labels)
+        self.train_confusionMatrix.update(predictions_0_1, labels)
         # self.train_total_confusionMatrix.update(predictions_sigmoid, labels)
     def eval_update(self, loss, predictions, labels):
         self.total_eval_loss += loss.item()
         predictions_sigmoid = torch.sigmoid(predictions)
-        self.eval_acc.update(predictions_sigmoid, labels)
-        self.eval_recall.update(predictions_sigmoid, labels)
-        self.eval_precision.update(predictions_sigmoid, labels)
-        self.eval_F1.update(predictions_sigmoid, labels)
-        self.eval_spe.update(predictions_sigmoid, labels)
-        self.eval_weight_acc.update(predictions_sigmoid, labels)
-        self.eval_weight_recall.update(predictions_sigmoid, labels)
-        self.eval_weight_precision.update(predictions_sigmoid, labels)
-        self.eval_weight_F1.update(predictions_sigmoid, labels)
-        self.eval_weight_spe.update(predictions_sigmoid, labels)
-        self.eval_confusionMatrix.update(predictions_sigmoid, labels)
+        predictions_0_1 = to0_1(predictions_sigmoid)
+        predictions_0_1 = add_leading_column(predictions_0_1)
+        self.eval_acc.update(predictions_0_1, labels)
+        self.eval_recall.update(predictions_0_1, labels)
+        self.eval_precision.update(predictions_0_1, labels)
+        self.eval_F1.update(predictions_0_1, labels)
+        self.eval_spe.update(predictions_0_1, labels)
+        self.eval_weight_acc.update(predictions_0_1, labels)
+        self.eval_weight_recall.update(predictions_0_1, labels)
+        self.eval_weight_precision.update(predictions_0_1, labels)
+        self.eval_weight_F1.update(predictions_0_1, labels)
+        self.eval_weight_spe.update(predictions_0_1, labels)
+        self.eval_confusionMatrix.update(predictions_0_1, labels)
         # self.train_total_confusionMatrix.update(predictions_sigmoid, labels)
     def compute_result(self):
         self.total_train_accuracy = self.train_acc.compute()

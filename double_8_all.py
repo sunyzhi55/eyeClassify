@@ -5,20 +5,7 @@ from model import *
 from utils.metrics import *
 from utils.basic import get_scheduler
 import torch
-class SingleImageModel7Class(nn.Module):
-  def __init__(self, num_classes, pretrained_path):
-    super().__init__()
-    # self.model1 = build_efficientVit.EfficientViT_M5(pretrained='efficientvit_m5')
-    self.model1 = build_efficientVit.EfficientViT_M0(pretrained='efficientvit_m0')
-    self.model1.head[1] = nn.Linear(192, num_classes)
 
-  def forward(self, image):
-    # x = left_right_concat[:, :3, :, :]
-    # y = left_right_concat[:, 3:, :, :]
-    result = self.model1(image)
-    # y1 = self.model1(y)
-    # fusion = torch.cat((x1, y1), dim=1)
-    return result
 
 class DoubleTransformedSubset(Dataset):
     def __init__(self, subset, transform=None):

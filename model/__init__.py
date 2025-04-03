@@ -5,3 +5,6 @@ from model.EffientNet import *
 from model.Resnet import *
 from model.poolformer import *
 from model.get_model import *
+from model.efficientvit import *
+from model.build_efficientVit import *
+from model.metaformer import *
